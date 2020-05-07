@@ -11,23 +11,25 @@ function onOpen() {
 };
 
 /**********************************************
- *チャンネルURLから動画データを取得するマン
+ *検索結果から動画データを取得するマン
  *
  **********************************************/
-function getMovieData () {
+function getSearchData(){
   
   var book = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetData = book.getSheetByName("基本シート");
+  var sheetData = book.getSheetByName("入力");
   
   const APIURL_GET_CHANNEL  = 'https://www.googleapis.com/youtube/v3/channels?';
   const APIURL_GET_PLAYLIST = 'https://www.googleapis.com/youtube/v3/playlistItems?';
   const APIURL_GET_VIDEODATA = 'https://www.googleapis.com/youtube/v3/videos?';
+  const APIURL_GET_SEARCHRES = 'https://www.googleapis.com/youtube/v3/search??type=video';
+  
   const CHANNEL_URL_HEAD_DF = 'https://www.youtube.com/channel/';
   const CHANNEL_URL_HEAD_US = 'https://www.youtube.com/user/';
 
 
-  var inputCelCol = 2;
-  var inputCelRow = 2;
+  var inputCelCol = 3;
+  var inputCelRow = 1;
   
   var colURL = 6;
   var colContributeCount = 12;
@@ -38,44 +40,53 @@ function getMovieData () {
   
 
   //設定値取得
+  /*
   var c = 5;
   var totalViewBuzzCond = sheetData.getRange(c++, 2).getValue();  //バズったと思う視聴回数
   var resentPeriodCond   = sheetData.getRange(c++, 2).getValue();  //初期バズ観察日数
   var periodBuzzCond    = sheetData.getRange(c++, 2).getValue();  //初期バズ判定視聴数
+  */
   
   //apiキー取得
   var key = {pri : ''};
   var key_arr = [];
   
-  var lastRow = sheetData.getRange(sheetData.getMaxRows(), 2).getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
+  var key_col = 6;
+  var lastRow = sheetData.getRange(sheetData.getMaxRows(), key_col).getNextDataCell(SpreadsheetApp.Direction.UP).getRow();
   var counta = 0;
   for(var i = 10; i <= lastRow; i++){
-    key_arr[counta] = sheetData.getRange(i, 2).getValue();
+    key_arr[counta] = sheetData.getRange(i, key_col).getValue();
     if(key_arr[counta] != ''){ 
+      //Browser.msgBox(i + ':' + key_arr[counta]);
       counta++; 
     }
   }
   key.pri = key_arr[0];
-
-  //チャンネルID取得
-  var isUser = false;
-  var cnlUrl = sheetData.getRange(2, 1).getValue();
-  var cid;
-  if(cnlUrl.indexOf(CHANNEL_URL_HEAD_DF) == 0){
-    cid = cnlUrl.replace(CHANNEL_URL_HEAD_DF,'');
-  }else if(cnlUrl.indexOf(CHANNEL_URL_HEAD_US) == 0){
-    cid = cnlUrl.replace(CHANNEL_URL_HEAD_US,'');
-  }else{
-    Browser.msgBox('エラー：チャンネルのURLじゃありません');
-    return;
+  
+  //検索ワードを取得
+  var word_empty = false;
+  var word = '@not';
+  var row = inputCelRow;
+  var keyword = '';
+  word = sheetData.getRange(row++,inputCelCol).getValue();
+  while(word != ''){
+    keyword += word;
+    word = sheetData.getRange(row++,inputCelCol).getValue();
+    if (word != ''){
+      keyword += '+';
+    }
   }
+  //取得件数
+  var maxResult = 20;
   
-  var cid_arr = cid.split('/');
   
-  var id = cid_arr[0];
+  var key = "&key=" + key.pri;
+  var prm = "&part=snippet&maxResults=" + maxResult;
+  var order = '&order=viewCount';
+  var search_word = '&q=' + keyword;
   
-  var prm = "part=contentDetails,snippet,statistics"
-  + (isUser ? "&forName=" : "&id=") + id;
+  var targetChannelUrl = [];
+  var targetChannelName = [];
   
   var targetVideoId = [];
   var targetVideoUrl = [];
@@ -94,77 +105,58 @@ function getMovieData () {
   
   var q_suc = false;
   
-  var dataURL = APIURL_GET_CHANNEL + prm;
+  var dataURL = APIURL_GET_SEARCHRES + prm + search_word + order + key;
   
   var resp;
   resp = requestApi(dataURL, key, key_arr);
   if (resp == false){ return; }
+  /*
   var c_json  = JSON.parse(resp.getContentText());
   var c_items = c_json.items[0];
   var c_snippet = c_items.snippet;
   var c_statistics = c_items.statistics;
   var c_contentDetails = c_items.contentDetails;
+  */
   
-  //チャンネル名
-  ctitle = c_snippet.title;
-  //登録者数
-  var subs;
-  if(c_statistics.hiddenSubscriberCount){
-    //非公開
-    subs = '非公開';
-  }else{
-    subs = c_statistics.subscriberCount;
-  }
-  //総再生数
-  var c_view = c_statistics.viewCount;
+  var list = JSON.parse(resp.getContentText()).items;
   
-  //動画一覧取得
-  prm = "part=snippet&maxResults=50&playlistId=" + c_contentDetails.relatedPlaylists.uploads;
+  var vjson;
+  var vprm;
+  var vurl;
+  var data;
   
-  var playlistUrl = APIURL_GET_PLAYLIST + prm;
-  var res = requestApi(playlistUrl, key, key_arr);
-  if (res == false){ return; }
-  var jp = JSON.parse(res.getContentText());
-  
-  var next = jp.nextPageToken;
-  var total = jp.pageInfo.totalResults;
-  var list = jp.items;
-  
-  //動画情報取得
-  var count = 0;
-  
-  //実行日の日付
-  var todate = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd");
-  
-end_label:
-  for(var j = 0; j<(total/50); j+=1){
+end_label1:
+  for(var k = 0; k< maxResult; k+=1){
     
-    if (j>0){
-      var nextUrl = playlistUrl + "&pageToken=" + next;
-      res = requestApi(nextUrl, key, key_arr);
-      if (res == false){ return; }
-      jp = JSON.parse(res.getContentText());
-      list = jp.items;
-      next = jp.nextPageToken;
+    if(list[k] == null){
+      k--;
+      break end_label1;
     }
-    for(var k = count; k<count + list.length; k+=1){
-      //ID
-      targetVideoId[k] = list[k - count].snippet.resourceId.videoId;
-      
-      var vprm = "&part=snippet,contentDetails,statistics&id=" + targetVideoId[k];
-      
-      vjson = requestApi(APIURL_GET_VIDEODATA + vprm, key, key_arr);
-      if (vjson == false){ return; }
-      var data = JSON.parse(vjson.getContentText()).items[0];
-      
-      //url
-      targetVideoUrl[k] = "https://www.youtube.com/watch?v=" + targetVideoId[k];
-      //タイトル
-      targetVideoTitle[k] = data.snippet.title;
-      //日時
-      var publishedTime = data.snippet.publishedAt;
-      targetVideoDate[k] = Utilities.formatDate(new Date(publishedTime), "JST", "yyyy/MM/dd");
-      targetVideoTime[k] = Utilities.formatDate(new Date(publishedTime), "JST", "HH:mm:ss");
+    
+    //ID
+    targetVideoId[k] = list[k].id.videoId;
+    //url
+    targetVideoUrl[k] = "https://www.youtube.com/watch?v=" + targetVideoId[k];
+    //タイトル
+    targetVideoTitle[k] = list[k].snippet.title;
+    //日時
+    var publishedTime = list[k].snippet.publishedAt;
+    targetVideoDate[k] = Utilities.formatDate(new Date(publishedTime), "JST", "yyyy/MM/dd");
+    targetVideoTime[k] = Utilities.formatDate(new Date(publishedTime), "JST", "HH:mm:ss");
+    
+    //チャンネル名・URL
+    targetChannelUrl[k] = 'https://www.youtube.com/channel/' + list[k].snippet.channelId;
+    targetChannelName[k] = list[k].snippet.channelTitle;
+    
+    vprm = "&part=snippet,contentDetails,statistics&id=" + targetVideoId[k];
+    
+    vurl = APIURL_GET_VIDEODATA + vprm + key;
+    
+    vjson = requestApi(APIURL_GET_VIDEODATA + vprm, key, key_arr);
+    if (vjson == false){ return; }
+    data = JSON.parse(vjson.getContentText()).items[0];
+    
+    try{
       
       //再生数
       targetVideoView[k] = data.statistics.viewCount;
@@ -185,51 +177,149 @@ end_label:
       targetComCount[k] = data.statistics.commentCount;
       //タグ取得
       targetVideoTags[k] = data.snippet.tags;
+      
+    }catch(e){
+      //再生数
+      targetVideoView[k] = 0;
+      //動画時間
+      targetVideoDuration[k] = '0:00';
+      //高評価
+      targetLikeCount[k] = 0;
+      //低評価
+      targetDislikeCount[k] = 0;
+      //コメント数
+      targetComCount[k] = 0;
+      //タグ取得
+      targetVideoTags[k] = '-';
     }
-    count = k;
   }
-
+  
+  order = '&order=date';
+  dataURL = APIURL_GET_SEARCHRES + prm + search_word + order + key;
+  resp = UrlFetchApp.fetch(dataURL);
+  
+  list = JSON.parse(resp.getContentText()).items;
+  
+  var count = k;
+  
+end_label2:
+  for(var x = 0; x < maxResult; x+=1){
+    
+    if(list[x] == null){
+        k--;
+        break end_label2;
+      }
+    
+    Logger.log(k + '件目：' + list[x]);
+    
+    if(list[x].id.videoId == undefined){
+        k--;
+        continue;
+    }
+    
+    //ID
+    targetVideoId[k] = list[x].id.videoId;    
+    //url
+    targetVideoUrl[k] = "https://www.youtube.com/watch?v=" + targetVideoId[k];
+    //タイトル
+    targetVideoTitle[k] = list[x].snippet.title;
+    //日時
+    publishedTime = list[x].snippet.publishedAt;
+    targetVideoDate[k] = Utilities.formatDate(new Date(publishedTime), "JST", "yyyy/MM/dd");
+    targetVideoTime[k] = Utilities.formatDate(new Date(publishedTime), "JST", "HH:mm:ss");
+    
+    //チャンネル名・URL
+    targetChannelUrl[k] = 'https://www.youtube.com/channel/' + list[x].snippet.channelId;
+    targetChannelName[k] = list[x].snippet.channelTitle;
+    
+    vprm = "&part=snippet,contentDetails,statistics&id=" + targetVideoId[k];
+    
+    vurl = APIURL_GET_VIDEODATA + vprm + key;
+    
+    vjson = requestApi(APIURL_GET_VIDEODATA + vprm, key, key_arr);
+    if (vjson == false){ return; }
+    data = JSON.parse(vjson.getContentText()).items[0];
+    
+    try{
+      //再生数
+      targetVideoView[k] = data.statistics.viewCount;
+      Logger.log(targetVideoView[k]);
+      
+      //動画時間
+      var videoDuration = data.contentDetails.duration.replace('PT','').replace('S','').split('M');
+      if (videoDuration[1] == 0) {
+        videoDuration[1] = "00";
+      }
+      else if (videoDuration[1] < 10) {
+        videoDuration[1] = "0" + videoDuration[1];
+      }
+      targetVideoDuration[k] = videoDuration[0] + ':' + videoDuration[1];
+      //高評価
+      targetLikeCount[k] = data.statistics.likeCount;
+      //低評価
+      targetDislikeCount[k] = data.statistics.dislikeCount;
+      //コメント数
+      targetComCount[k] = data.statistics.commentCount;
+      //タグ取得
+      targetVideoTags[k] = data.snippet.tags;
+    
+    }catch(e){
+      //再生数
+      targetVideoView[k] = 0;
+      //動画時間
+      targetVideoDuration[k] = '0:00';
+      //高評価
+      targetLikeCount[k] = 0;
+      //低評価
+      targetDislikeCount[k] = 0;
+      //コメント数
+      targetComCount[k] = 0;
+      //タグ取得
+      targetVideoTags[k] = '-';
+    }
+    
+    k++;
+  }
   
   //チャンネルのシート取得
-  var newSheet = book.getSheetByName(ctitle);
+  var resSheet = "結果";
+  var newSheet = book.getSheetByName(resSheet);
   if(newSheet != null){
     book.deleteSheet(newSheet);
   }
-  book.insertSheet(ctitle);
-  newSheet = book.getSheetByName(ctitle);
+  book.insertSheet(resSheet);
+  newSheet = book.getSheetByName(resSheet);
   
-  //チャンネル名
-  var o = 1;
-  newSheet.getRange(o++, 1).setValue(ctitle);
-  newSheet.getRange(o++, 1).setValue('チャンネル登録者数：' + subs);
-  newSheet.getRange(o++, 1).setValue('総再生数：' + c_view);
+  var defRow = 1;
   
-  var m = 1;
-  
-  newSheet.getRange(o, m++).setValue('タイトル');
+  var m = 1
+  newSheet.getRange(defRow, m++).setValue('チャンネル名');
+  newSheet.getRange(defRow, m++).setValue('タイトル');
   var date = m;
-  newSheet.getRange(o, m++).setValue('投稿日');
-  newSheet.getRange(o, m++).setValue('曜日');
-  newSheet.getRange(o, m++).setValue('投稿時間');
+  newSheet.getRange(defRow, m++).setValue('投稿日');
+  newSheet.getRange(defRow, m++).setValue('曜日');
+  newSheet.getRange(defRow, m++).setValue('投稿時間');
   var view = m;  
-  newSheet.getRange(o, m++).setValue('再生数');
-  newSheet.getRange(o, m++).setValue('日次再生');
+  newSheet.getRange(defRow, m++).setValue('再生数');
+  newSheet.getRange(defRow, m++).setValue('日次再生');
   var h = m;
-  newSheet.getRange(o, m++).setValue('動画時間');
-  newSheet.getRange(o, m++).setValue('高評価数');
-  newSheet.getRange(o, m++).setValue('低評価数');
-  newSheet.getRange(o, m++).setValue('コメント');
+  newSheet.getRange(defRow, m++).setValue('動画時間');
+  newSheet.getRange(defRow, m++).setValue('高評価数');
+  newSheet.getRange(defRow, m++).setValue('低評価数');
+  newSheet.getRange(defRow, m++).setValue('コメント');
   var tags = m;
-  newSheet.getRange(o, m++).setValue('タグ');
+  newSheet.getRange(defRow, m++).setValue('タグ');
   var tmp = m;
   
-  var tempCel = newSheet.getRange(1, 2);
+  var tempCel = newSheet.getRange(1, 3);
   tempCel.setValue(todate);
   
   //二次元配列の生成
   var targetValue = [];
-  var ll = 0;
-  for(var l = 0; l < targetVideoId.length; l+=1){
+  var l = 0;
+  Logger.log(count);
+  for(var y = 0; y < k + 1; y+=1){
+    
     if (targetVideoTags[l] == null){
       //none
     }else{
@@ -238,41 +328,44 @@ end_label:
         tag = tag + ',' + targetVideoTags[l][t];
       }
     }
-    Logger.log(targetVideoTitle[l]);
     
-    ll = l + o + 1;
-    
-    targetValue[l] = [
-      '=HYPERLINK("' + targetVideoUrl[l] + '","' + targetVideoTitle[l].split('"').join('""') + '")',
-      targetVideoDate[l],
-      '=text(B' + (ll) + ',"ddd")',
-      targetVideoTime[l],
-      targetVideoView[l],
-      '=E' + (ll) + '/(today() + 1 - B' + (ll) + ')',
-      targetVideoDuration[l],
-      targetLikeCount[l],
-      targetDislikeCount[l],
-      targetComCount[l],
-      tag,
-      '=B' + (ll) + '-$B$1'
-    ];
+    if(y == count){
+      targetValue[y] = ['日付順','','','','','','','','','','','',''];
+    }else{
+      Logger.log(l + '件目：' + targetVideoTitle[l]);
+      targetValue[y] = [
+        '=HYPERLINK("' + targetChannelUrl[l] + '","' + targetChannelName[l] + '")',
+        '=HYPERLINK("' + targetVideoUrl[l] + '","' + targetVideoTitle[l].split('"').join('""') + '")',
+        targetVideoDate[l],
+        '=text(C' + (l+3) + ',"ddd")',
+        targetVideoTime[l],
+        targetVideoView[l],
+        '=F' + (l+3) + '/(today() + 1 - C' + (l+3) + ')',
+        targetVideoDuration[l],
+        targetLikeCount[l],
+        targetDislikeCount[l],
+        targetComCount[l],
+        tag,
+        '=C' + (l+3) + '-C1'
+      ];
+      l++;
+      Logger.log(l + '件目');
+    }
   }
   
-  newSheet.getRange(o + 1,1,targetValue.length,targetValue[0].length).setValues(targetValue);
+  newSheet.getRange(defRow + 1, 1, targetValue.length,targetValue[0].length).setValues(targetValue);
+  
+  /*
+  ハイライト
+  var nn = 0;
+  var videoView;
   
   for(var n = 0; n<targetValue.length; n+=1){  
   
-    var nn = n + o + 1;
+    nn = n + o + 1;
     
-    var videoView = newSheet.getRange(nn, view);
-    var videoDate = newSheet.getRange(nn, date);
+    videoView = newSheet.getRange(nn, view);
     
-    //最近出てすぐ伸びた動画は日付をハイライトする
-    var tempDate = newSheet.getRange(nn, tmp).getValue();
-    if (tempDate * -1 <= resentPeriodCond && videoView.getValue() > periodBuzzCond){
-      videoDate.setBackground('#ffff00');
-      videoDate.setFontStyle('Bold');
-    }
     //特定回数以上再生された動画は再生回数をハイライトする
     if (videoView.getValue() > totalViewBuzzCond){
       videoView.setBackground('#ffff00');
@@ -284,6 +377,7 @@ end_label:
   newSheet.getRange(4, tmp, nn, 1).clear();
   
   newSheet.setFrozenRows(o);
+  */
   
   for(var c=1; c<= 10; c+=1){
     newSheet.autoResizeColumn(c);
@@ -334,6 +428,7 @@ function requestApi(url, key, key_arr){
     try{
       res_val = UrlFetchApp.fetch(url + '&key=' + key.pri);//,{ muteHttpExceptions:true });
     }catch(e){
+      Browser.msgBox('エラー：' + e.message);
       if(e.message.indexOf(QUOTA_EXCEEDED_1) == -1 && e.message.indexOf(QUOTA_EXCEEDED_2) == -1){
         Browser.msgBox('エラー：APIキーか、URLが無効です。');
         return false;
