@@ -154,7 +154,6 @@ end_label1:
     
     vurl = APIURL_GET_VIDEODATA + vprm + keys;
     
-    //Browser.msgBox(vurl);
     
     vjson = requestApi(vurl, key, key_arr);
     if (vjson == false){ return; }
@@ -199,7 +198,8 @@ end_label1:
   }
   
   order = '&order=date';
-  dataURL = APIURL_GET_SEARCHRES + prm + search_word + order + key;
+  dataURL = APIURL_GET_SEARCHRES + prm + search_word + order + keys;
+  Browser.msgBox(dataURL);
   resp = UrlFetchApp.fetch(dataURL);
   
   list = JSON.parse(resp.getContentText()).items;
@@ -238,7 +238,7 @@ end_label2:
     
     vprm = "&part=snippet,contentDetails,statistics&id=" + targetVideoId[k];
     
-    vurl = APIURL_GET_VIDEODATA + vprm + keys;
+    vurl = APIURL_GET_VIDEODATA + vprm + key;
     
     vjson = requestApi(APIURL_GET_VIDEODATA + vprm, key, key_arr);
     if (vjson == false){ return; }
@@ -315,8 +315,11 @@ end_label2:
   newSheet.getRange(defRow, m++).setValue('タグ');
   var tmp = m;
   
+  /*
+  var todate = Utilities.formatDate(new Date(), "JST", "yyyy/MM/dd");
   var tempCel = newSheet.getRange(1, 3);
   tempCel.setValue(todate);
+  */
   
   //二次元配列の生成
   var targetValue = [];
@@ -350,7 +353,6 @@ end_label2:
         targetDislikeCount[l],
         targetComCount[l],
         tag,
-        '=C' + (l+3) + '-C1'
       ];
       l++;
       Logger.log(l + '件目');
