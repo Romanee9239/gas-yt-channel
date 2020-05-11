@@ -80,7 +80,7 @@ function getSearchData(){
   var maxResult = 20;
   
   
-  var key = "&key=" + key.pri;
+  var keys = "&key=" + key.pri;
   var prm = "&part=snippet&maxResults=" + maxResult;
   var order = '&order=viewCount';
   var search_word = '&q=' + keyword;
@@ -105,7 +105,9 @@ function getSearchData(){
   
   var q_suc = false;
   
-  var dataURL = APIURL_GET_SEARCHRES + prm + search_word + order + key;
+  
+  var dataURL = APIURL_GET_SEARCHRES + prm + search_word + order + keys;
+  
   
   var resp;
   resp = requestApi(dataURL, key, key_arr);
@@ -150,9 +152,11 @@ end_label1:
     
     vprm = "&part=snippet,contentDetails,statistics&id=" + targetVideoId[k];
     
-    vurl = APIURL_GET_VIDEODATA + vprm + key;
+    vurl = APIURL_GET_VIDEODATA + vprm + keys;
     
-    vjson = requestApi(APIURL_GET_VIDEODATA + vprm, key, key_arr);
+    //Browser.msgBox(vurl);
+    
+    vjson = requestApi(vurl, key, key_arr);
     if (vjson == false){ return; }
     data = JSON.parse(vjson.getContentText()).items[0];
     
@@ -234,7 +238,7 @@ end_label2:
     
     vprm = "&part=snippet,contentDetails,statistics&id=" + targetVideoId[k];
     
-    vurl = APIURL_GET_VIDEODATA + vprm + key;
+    vurl = APIURL_GET_VIDEODATA + vprm + keys;
     
     vjson = requestApi(APIURL_GET_VIDEODATA + vprm, key, key_arr);
     if (vjson == false){ return; }
