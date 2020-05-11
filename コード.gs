@@ -199,7 +199,7 @@ end_label1:
   
   order = '&order=date';
   dataURL = APIURL_GET_SEARCHRES + prm + search_word + order + keys;
-  Browser.msgBox(dataURL);
+  //Browser.msgBox(dataURL);
   resp = UrlFetchApp.fetch(dataURL);
   
   list = JSON.parse(resp.getContentText()).items;
@@ -337,9 +337,9 @@ end_label2:
     }
     
     if(y == count){
-      targetValue[y] = ['日付順','','','','','','','','','','','',''];
+      targetValue[y] = ['日付順','','','','','','','','','','',''];
     }else{
-      Logger.log(l + '件目：' + targetVideoTitle[l]);
+      //Logger.log(l + '件目：' + targetVideoTitle[l]);
       targetValue[y] = [
         '=HYPERLINK("' + targetChannelUrl[l] + '","' + targetChannelName[l] + '")',
         '=HYPERLINK("' + targetVideoUrl[l] + '","' + targetVideoTitle[l].split('"').join('""') + '")',
@@ -352,12 +352,14 @@ end_label2:
         targetLikeCount[l],
         targetDislikeCount[l],
         targetComCount[l],
-        tag,
+        tag
       ];
       l++;
       Logger.log(l + '件目');
     }
   }
+  
+  //Browser.msgBox(targetValue[0].length);
   
   newSheet.getRange(defRow + 1, 1, targetValue.length,targetValue[0].length).setValues(targetValue);
   
