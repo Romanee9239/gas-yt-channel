@@ -45,7 +45,6 @@ function dairyCrowl(){
       //Logger.log(i + ':' + url);
       totalView[i] = bitweenHtml(html,view_STag,view_ETag);
       if (totalView[i] == null){
-        Logger.log("49:nullやで(" + k + "回目)");
         totalView[i] = bitweenHtml(html,null_STag,null_ETag);
         k++;
       }
